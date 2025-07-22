@@ -3,7 +3,7 @@ Multi-Branch Iterative Enhancement: A Novel Approach for Low-Light Image Restora
 
 
 ## Model Architecture
-![image](https://github.com/Autumn-1t/MBLLIE-Net/image/Fig.png) 
+![image](https://github.com/Autumn-1t/MBLLIE-Net/blob/main/image/Fig.png) 
 The overview of the proposed MBLLIE-Net.
 
 
