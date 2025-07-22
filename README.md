@@ -54,4 +54,5 @@ All test results will be saved to `./results`.
 ** Then, You can run '''test.py'''
 
 
-
+### Note ###
+This code is directly related to the manuscript you are currently submitting to The Visual Computer. 
