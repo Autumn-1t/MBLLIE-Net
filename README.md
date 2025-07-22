@@ -23,21 +23,17 @@ You can refer to the following links to download the datasets
 
 
 ### dataset Structure ###
-//For training and testing data, we recommend this structure.    
+//For training and testing data, we recommend this structure.     
 
-//testhigh and testlow store low-light images and labels for testing, respectively, trainhigh and trainlow store low-light images and labels for training, respectively.    
-
-//We recommend using the top 97% of the dataset for training, and the last 3% for testing   
-
-*├─datasets 
-**└─dataset  
-**└─train   
+*├─datasets   
+**└─dataset   
+***└─train   
 ****├─input    
-****├─target
+****├─target   
 ***└─test  
 ****├─input    
 ****├─target   
-    
+
 
 ### Train ###
 All log files during training will be saved to `./checkpoints`.
