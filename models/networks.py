@@ -281,130 +281,72 @@ class VGGLoss1(nn.Module):
         return loss
 
 
-class ECALayer(nn.Module):
-    def __init__(self, channel, b=1, gamma=2):
-        super(ECALayer, self).__init__()
-        kernel_size = int(abs((math.log(channel, 2) + b) / gamma))
+class ARFCA(nn.Module):
+    def __init__(self, channels, base_factor=8, gamma_div=3):
+        super(ARFCA, self).__init__()
+        # 动态计算卷积核尺寸并确保为奇数
+        kernel_size = max(3, int(math.log(channels, base_factor) // gamma_div))
         kernel_size = kernel_size if kernel_size % 2 else kernel_size + 1
-
+        
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, padding=(kernel_size - 1) // 2, bias=False)
+        self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, 
+                             padding=(kernel_size - 1) // 2, bias=False)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        y = self.avg_pool(x)
-        y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+        # 输入x维度: [B, C, H, W]
+        y = self.avg_pool(x)  # [B, C, 1, 1]
+        
+        # 维度转换处理
+        y = y.squeeze(-1)         # 移除最后一维 [B, C, 1]
+        y = y.transpose(-1, -2)   # 转置 [B, 1, C]
+        y = self.conv(y)           # 1D卷积 [B, 1, C]
+        y = y.transpose(-1, -2)   # 转置回 [B, C, 1]
+        y = y.unsqueeze(-1)       # 增加维度 [B, C, 1, 1]
+        
         y = self.sigmoid(y)
-        out = x * y.expand_as(x)
-        return out
+        return x * y.expand_as(x)
 
-
-class GRU64(nn.Module):
-    def __init__(self, n_feats):#n_feats，表示输入特征的数量
-        super(GRU64, self).__init__()
-        # 更新门
-        self.conv_z = nn.Sequential(
-            nn.Conv2d(n_feats * 2, n_feats, 3, 1, 1),#输入通道数为 n_feats * 2，输出通道数为 n_feats，卷积核大小为 3x3，步长为 1，填充为 1
+class SpatialRecurrentUnit(nn.Module):
+    def __init__(self, in_channels, state_channels, dilation=1):
+        super(SpatialRecurrentUnit, self).__init__()
+        self.update_gate = nn.Sequential(
+            nn.Conv2d(in_channels + state_channels, state_channels, 
+                      kernel_size=3, padding=dilation, dilation=dilation),
             nn.Sigmoid()
         )
-        # 重置门
-        self.conv_r = nn.Sequential(
-            nn.Conv2d(n_feats * 2, n_feats, 3, 1, 1),
+        self.reset_gate = nn.Sequential(
+            nn.Conv2d(in_channels + state_channels, state_channels,
+                      kernel_size=3, padding=dilation, dilation=dilation),
             nn.Sigmoid()
         )
-        # 候选隐藏状态
-        self.conv_h_ = nn.Sequential(
-            nn.Conv2d(n_feats * 2, n_feats, 3, 1, 1),
+        self.state_gen = nn.Sequential(
+            nn.Conv2d(in_channels + state_channels, in_channels + state_channels, 
+                     kernel_size=3, padding=1, groups=in_channels + state_channels),
+            nn.Conv2d(in_channels + state_channels, state_channels, kernel_size=1),
             nn.Tanh()
         )
 
-    def forward(self, x, h):#x（当前输入数据）和 h（前一时刻的隐藏状态）
-        #使用 F.interpolate 对 h 进行上采样，使其空间维度与输入 x 相匹配
-        h_conv = F.interpolate(h,size=(x.size(2), x.size(3)), mode='bilinear', align_corners=False)
-
-        z = self.conv_z(torch.cat((x,h_conv), dim=1))
-        r = self.conv_r(torch.cat((x,h_conv), dim=1))
-
-        h_ = self.conv_h_(torch.cat((x,r*h_conv), dim=1))#候选隐藏状态
-
-        h_new = (1 - z) * h + z * h_#新隐藏状态
-
-        return h_new
-
-
-class GRU128(nn.Module):
-    def __init__(self, n_feats):
-        super(GRU128, self).__init__()
-        # 更新门
-        self.conv_z = nn.Sequential(
-            nn.Conv2d(n_feats * 4, n_feats*2, 3, 1, 1),
-            nn.Sigmoid()
-        )
-        # 重置门
-        self.conv_r = nn.Sequential(
-            nn.Conv2d(n_feats * 4, n_feats*2, 3, 1, 1),
-            nn.Sigmoid()
-        )
-        # 候选隐藏状态
-        self.conv_h_ = nn.Sequential(
-            nn.Conv2d(n_feats * 4, n_feats*2, 3, 1, 1),
-            nn.Tanh()
-        )
-
-    def forward(self, x, h):
-        h_conv = F.interpolate(h,size=(x.size(2), x.size(3)), mode='bilinear', align_corners=False)
-
-        z = self.conv_z(torch.cat((x,h_conv), dim=1))
-        r = self.conv_r(torch.cat((x,h_conv), dim=1))
-
-        h_ = self.conv_h_(torch.cat((x,r*h_conv), dim=1))
-
-        h_new = (1 - z) * h + z * h_
-
-        return h_new
-
-
-
-class GRU256(nn.Module):
-    def __init__(self, n_feats):
-        super(GRU256, self).__init__()
-        # 更新门
-        self.conv_z = nn.Sequential(
-            nn.Conv2d(n_feats * 8, n_feats*4, 3, 1, 1),
-            nn.Sigmoid()
-        )
-        # 重置门
-        self.conv_r = nn.Sequential(
-            nn.Conv2d(n_feats * 8, n_feats*4, 3, 1, 1),
-            nn.Sigmoid()
-        )
-        # 候选隐藏状态
-        self.conv_h_ = nn.Sequential(
-            nn.Conv2d(n_feats * 8, n_feats*4, 3, 1, 1),
-            nn.Tanh()
-        )
-
-    def forward(self, x, h):
-        h_conv = F.interpolate(h,size=(x.size(2), x.size(3)), mode='bilinear', align_corners=False)
-
-        z = self.conv_z(torch.cat((x,h_conv), dim=1))
-        r = self.conv_r(torch.cat((x,h_conv), dim=1))
-
-        h_ = self.conv_h_(torch.cat((x,r*h_conv), dim=1))
-
-        h_new = (1 - z) * h + z * h_
-
-        return h_new
-
+    def forward(self, x, prev_state):
+        if prev_state.size(2) != x.size(2) or prev_state.size(3) != x.size(3):
+            prev_state = F.interpolate(prev_state, size=x.shape[2:], 
+                                      mode='bilinear', align_corners=True)
+        combined = torch.cat([x, prev_state], dim=1)
+        z = self.update_gate(combined)
+        r = self.reset_gate(combined)
+        gated_state = torch.cat([x, r * prev_state], dim=1)
+        candidate = self.state_gen(gated_state)
+        new_state = (1 - z) * prev_state + z * candidate
+        return new_state
 
 
 class Branch1(nn.Module):
     def __init__(self, n_feats):
         super(Branch1, self).__init__()
-        self.eca_layer = ECALayer(n_feats, 8)
+        self.eca_layer = ARFCA(n_feats, 8)
         self.conv1 = nn.Sequential(nn.Conv2d(64, 64, 3, 1, 1), nn.ReLU())
         self.conv2 = nn.Sequential(nn.Conv2d(64, 64, 3, 1, 1), nn.ReLU())
-        self.gru64 = GRU64(n_feats)
+        self.sru64= SpatialRecurrentUnit(in_channels=64, state_channels=64)
         self.conv3 = nn.Sequential(nn.Conv2d(64, 64, 3, 1, 1), nn.ReLU())
         self.conv4 = nn.Sequential(nn.Conv2d(64, 64, 3, 1, 1), nn.ReLU())
 
@@ -412,7 +354,7 @@ class Branch1(nn.Module):
         x = self.eca_layer(x)
         x = self.conv1(x)
         x = self.conv2(x)
-        h = self.gru64(x, h)
+        h = self.sru64(x, h)
         x = self.conv3(h)
         x = self.conv4(x)
         return x, h
@@ -422,10 +364,10 @@ class Branch1(nn.Module):
 class Branch2(nn.Module):
     def __init__(self, n_feats):
         super(Branch2, self).__init__()
-        self.eca_layer = ECALayer(n_feats*2, 8)
+        self.eca_layer = ARFCA(n_feats*2, 8)
         self.conv1 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.conv2 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
-        self.gru128_2 = GRU128(n_feats)
+        self.sru128_2= SpatialRecurrentUnit(in_channels=128, state_channels=128)
         self.conv3 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.conv4 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
 
@@ -437,7 +379,7 @@ class Branch2(nn.Module):
         x = self.conv2(x)
         res2 = x
 
-        h= self.gru128_2(x, h)
+        h= self.sru128_2(x, h)
 
         h = h + res2
         x = self.conv3(h)
@@ -451,10 +393,10 @@ class Branch2(nn.Module):
 class Branch3(nn.Module):
     def __init__(self, n_feats):
         super(Branch3, self).__init__()
-        self.eca_layer = ECALayer(n_feats*2, 8)
+        self.eca_layer = ARFCA(n_feats*2, 8)
         self.conv1 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.conv2 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
-        self.gru128_4 = GRU128(n_feats)
+        self.sru128_4 = SpatialRecurrentUnit(in_channels=128, state_channels=128)
         self.conv3 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.conv4 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
 
@@ -464,7 +406,7 @@ class Branch3(nn.Module):
         x = self.conv1(x)
         x = self.conv2(x)
         x = x + res1 * 0.3
-        h= self.gru128_4(x, h)
+        h= self.sru128_4(x, h)
         res2 = h
         x = self.conv3(h)
         x = self.conv4(x)
@@ -475,7 +417,7 @@ class Branch4(nn.Module):
     def __init__(self, n_feats):
         super(Branch4, self).__init__()
 
-        self.eca_layer = ECALayer(n_feats * 4, 8)
+        self.eca_layer = ARFCA(n_feats * 4, 8)
 
         self.diconv1 = nn.Sequential(
             nn.Conv2d(256, 256, 3, 1, 2, dilation=2),
@@ -496,7 +438,7 @@ class Branch4(nn.Module):
 
         self.conv7 = DepthWiseConv(256, 256)
 
-        self.gru256 = GRU256(n_feats)
+        self.sru256= SpatialRecurrentUnit(in_channels=256, state_channels=256)
 
         self.conv1 = DepthWiseConv(256, 256)
 
@@ -513,7 +455,7 @@ class Branch4(nn.Module):
 
         x=self.conv7(x)
 
-        h=self.gru256(x,h)
+        h=self.sru256(x,h)
 
         x=self.conv1(h)
         x=self.conv2(x) 
