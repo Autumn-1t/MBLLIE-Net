@@ -1,5 +1,5 @@
 # MBLLIE-Net
-Multi-Branch Iterative Enhancement: A Novel Approach for Low-Light Image Restoration
+Multi-Branch Low-Light Image Iterative Enhancement Network
 
 
 ## Model Architecture
