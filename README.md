@@ -52,7 +52,3 @@ All test results will be saved to `./results`.
 #To accommodate unpaired test data, our code can allow for label images not present#
 
 ** Then, You can run '''test.py'''
-
-
-### Note ###
-This code is directly related to the manuscript you are currently submitting to The Visual Computer. 
