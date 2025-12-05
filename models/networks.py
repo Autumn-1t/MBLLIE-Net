@@ -343,7 +343,7 @@ class SpatialRecurrentUnit(nn.Module):
 class Branch1(nn.Module):
     def __init__(self, n_feats):
         super(Branch1, self).__init__()
-        self.eca_layer = ARFCA(n_feats, 8)
+        self.arfca_layer = ARFCA(n_feats, 8)
         self.conv1 = nn.Sequential(nn.Conv2d(64, 64, 3, 1, 1), nn.ReLU())
         self.conv2 = nn.Sequential(nn.Conv2d(64, 64, 3, 1, 1), nn.ReLU())
         self.sru64= SpatialRecurrentUnit(in_channels=64, state_channels=64)
@@ -351,7 +351,7 @@ class Branch1(nn.Module):
         self.conv4 = nn.Sequential(nn.Conv2d(64, 64, 3, 1, 1), nn.ReLU())
 
     def forward(self, x, h):
-        x = self.eca_layer(x)
+        x = self.arfca_layer(x)
         x = self.conv1(x)
         x = self.conv2(x)
         h = self.sru64(x, h)
@@ -364,7 +364,7 @@ class Branch1(nn.Module):
 class Branch2(nn.Module):
     def __init__(self, n_feats):
         super(Branch2, self).__init__()
-        self.eca_layer = ARFCA(n_feats*2, 8)
+        self.arfca_layer = ARFCA(n_feats*2, 8)
         self.conv1 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.conv2 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.sru128_2= SpatialRecurrentUnit(in_channels=128, state_channels=128)
@@ -372,7 +372,7 @@ class Branch2(nn.Module):
         self.conv4 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
 
     def forward(self, x, h):
-        x = self.eca_layer(x)
+        x = self.arfca_layer(x)
 
         x = self.conv1(x)
         res1 = x
@@ -393,7 +393,7 @@ class Branch2(nn.Module):
 class Branch3(nn.Module):
     def __init__(self, n_feats):
         super(Branch3, self).__init__()
-        self.eca_layer = ARFCA(n_feats*2, 8)
+        self.arfca_layer = ARFCA(n_feats*2, 8)
         self.conv1 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.conv2 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
         self.sru128_4 = SpatialRecurrentUnit(in_channels=128, state_channels=128)
@@ -401,7 +401,7 @@ class Branch3(nn.Module):
         self.conv4 = nn.Sequential(nn.Conv2d(128,128, 3, 1, 1), nn.ReLU())
 
     def forward(self, x, h):
-        x = self.eca_layer(x)
+        x = self.arfca_layer(x)
         res1 = x
         x = self.conv1(x)
         x = self.conv2(x)
@@ -417,7 +417,7 @@ class Branch4(nn.Module):
     def __init__(self, n_feats):
         super(Branch4, self).__init__()
 
-        self.eca_layer = ARFCA(n_feats * 4, 8)
+        self.arfca_layer = ARFCA(n_feats * 4, 8)
 
         self.diconv1 = nn.Sequential(
             nn.Conv2d(256, 256, 3, 1, 2, dilation=2),
@@ -446,7 +446,7 @@ class Branch4(nn.Module):
 
     def forward(self,x,h):
 
-        x=self.eca_layer(x)
+        x=self.arfca_layer(x)
 
         x=self.diconv1(x)
         x=self.diconv2(x)
